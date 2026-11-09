@@ -1,0 +1,18 @@
+[package]
+name = "wx-tool"
+version = "0.1.0"
+edition = "2024"
+description = "微信多开（共存）工具"
+authors = ["wx-tool"]
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+eframe = "0.36.1"
+memchr = "2.8.3"
+memmap2 = "0.9.11"
+rfd = "0.17.2"
+windows-sys = { version = "0.61.2", features = ["Win32_System_Registry", "Win32_UI_Shell", "Win32_Security", "Win32_System_Threading", "Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+winresource = "0.1.31"

@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# 参考用的上游项目，自带独立的 .git
+/BetterWX

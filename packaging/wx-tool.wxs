@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  微信多开工具的 MSI 打包定义（WiX v4+ schema，用 WiX Toolset 6/7 的 `wix build` 编译）。
+
+  这是一个**仅当前用户**（per-user）的安装包：
+    · 装到 %LOCALAPPDATA%\Programs\wx-tool，安装过程完全不需要管理员权限
+    · 在「开始菜单」放一个快捷方式
+    · 出现在「设置 → 应用」里，可正常卸载
+    · 支持覆盖安装升级（MajorUpgrade）
+
+  注意：程序**运行时**给微信打补丁仍然需要管理员权限（要写 Program Files），
+  那是 wx-tool 自己按需弹 UAC 的事，与安装方式无关。
+
+  编译入口见 packaging\build-msi.ps1，它会传入下面两个预处理变量：
+    Version = 从 Cargo.toml 读到的版本号
+    BinDir  = 存放 wx-tool.exe 的目录（通常是 target\release）
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package
+      Name="微信多开工具"
+      Manufacturer="wx-tool"
+      Version="$(var.Version)"
+      UpgradeCode="255733E6-1C30-459C-8AD9-CA2B24609DD5"
+      Scope="perUser"
+      Compressed="yes"
+      Language="2052"
+      Codepage="65001">
+
+    <SummaryInformation
+        Description="微信多开（共存）工具 $(var.Version)"
+        Manufacturer="wx-tool" />
+
+    <!--
+      覆盖安装时先卸载旧版本。降级则直接报错，避免出现文件比版本号新的怪状态。
+
+      AllowSameVersionUpgrades="yes" 是必须的：ProductCode 每次构建都会重新生成，
+      如果不开这个，重装**同一个版本号**不会被识别为升级，结果是新旧两份并存，
+      「应用」列表里出现两条一模一样的记录，而且卸载一次只能去掉一条。
+    -->
+    <MajorUpgrade
+        AllowSameVersionUpgrades="yes"
+        DowngradeErrorMessage="已经安装了更新版本的 [ProductName]，安装程序将退出。" />
+
+    <!-- 把文件打进 MSI 内部，最终只产出单个 .msi，不带外部 .cab -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- 「设置 → 应用」里的展示信息 -->
+    <!-- 图标由 packaging\make-icon.ps1 生成；Id 以 .ico 结尾是 WiX 的约定，用来标明类型 -->
+    <Icon Id="AppIcon.ico" SourceFile="$(var.ProjectDir)\assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPCOMMENTS" Value="为微信生成可与原版同时运行的共存副本" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <!-- INSTALLFOLDER 要等 CostFinalize 解析完路径才有值，所以在它之后再赋给 ARP -->
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" />
+
+    <!--
+      安装位置：%LOCALAPPDATA%\Programs\wx-tool
+      这是现代 per-user 应用的惯例位置（VS Code、各类 Electron 应用都装在这儿），
+      普通用户可写，因此整个安装过程不触发 UAC。
+    -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="wx-tool" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- 当前用户的开始菜单 -->
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="微信多开工具" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable">
+        <File Id="wx_tool.exe" Source="$(var.BinDir)\wx-tool.exe" KeyPath="yes">
+          <!--
+            非通告式（Advertise="no"）快捷方式，直接指向 exe。
+            放在开始菜单根目录，就不用再写 RemoveFolder 去清理子文件夹了。
+          -->
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ProgramMenuFolder"
+                    Name="微信多开工具"
+                    Description="为微信生成可与原版同时运行的共存副本"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="no" />
+        </File>
+      </Component>
+
+      <Component Id="Readme">
+        <File Id="README.md" Source="$(var.ProjectDir)\README.md" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+  </Package>
+</Wix>
